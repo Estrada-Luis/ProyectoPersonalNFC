@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b6b45">
+<title>CompraNFC · Administración</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f4f6f5;color:#18201c}
+main{max-width:620px;margin:0 auto;padding:24px 16px}
+.card{background:#fff;border-radius:18px;padding:20px;box-shadow:0 6px 24px rgba(0,0,0,.08);margin-top:16px}
+h1{margin:0 0 6px;font-size:26px}.muted{color:#69766f;font-size:14px}
+label{display:block;font-weight:700;margin:16px 0 6px}
+input{width:100%;padding:13px;border:1px solid #ccd5d0;border-radius:10px;font-size:16px}
+button{border:0;border-radius:10px;padding:13px 16px;font-size:16px;font-weight:700;cursor:pointer}
+.primary{background:#0b6b45;color:white;width:100%;margin-top:18px}.secondary{background:#e9efec;color:#18201c}
+.result{margin-top:18px;padding:16px;border-radius:12px;background:#f4f6f5;display:none}
+.url{word-break:break-all;margin:10px 0;font-size:14px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{flex:1;min-width:120px}
+#error{color:#b42318;margin-top:12px}
+</style>
+</head>
+<body>
+<main>
+<div class="card">
+<h1>🛒 CompraNFC</h1>
+<div class="muted">Panel privado para crear casas y enlaces NFC.</div>
+<label for="key">Clave de administrador</label>
+<input id="key" type="password" autocomplete="off" placeholder="Introduce tu ADMIN_KEY">
+<label for="name">Nombre de la casa (opcional)</label>
+<input id="name" placeholder="Ej.: Casa de Luis">
+<label for="id">ID personalizado (opcional)</label>
+<input id="id" placeholder="Déjalo vacío para generar uno seguro">
+<button id="create" class="primary">Crear nueva casa</button>
+<div id="error"></div>
+<div id="result" class="result">
+<strong id="title"></strong>
+<div id="url" class="url"></div>
+<div class="actions">
+<button id="copy" class="secondary">Copiar enlace</button>
+<button id="open" class="secondary">Abrir casa</button>
+</div>
+</div>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+$('create').onclick=async()=>{
+  $('error').textContent=''; $('result').style.display='none';
+  const key=$('key').value.trim();
+  if(!key){$('error').textContent='Introduce la clave de administrador.';return}
+  const body={name:$('name').value.trim()||undefined,id:$('id').value.trim()||undefined};
+  try{
+    const r=await fetch('/api/admin/house',{method:'POST',headers:{'Content-Type':'application/json','x-admin-key':key},body:JSON.stringify(body)});
+    const d=await r.json(); if(!r.ok) throw new Error(d.error||'No se pudo crear la casa');
+    $('title').textContent=d.name+' · '+d.id;
+    $('url').textContent=d.url;
+    $('result').style.display='block';
+    $('copy').onclick=async()=>{await navigator.clipboard.writeText(d.url);$('copy').textContent='¡Copiado!';setTimeout(()=>$('copy').textContent='Copiar enlace',1500)};
+    $('open').onclick=()=>location.href=d.url;
+  }catch(e){$('error').textContent=e.message}
+};
+</script>
+</body>
+</html>
