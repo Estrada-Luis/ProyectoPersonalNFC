@@ -1,1 +1,9 @@
-{"name":"CompraNFC","short_name":"CompraNFC","start_url":"/casa/demo","display":"standalone","background_color":"#f4f6f5","theme_color":"#0b6b45","icons":[]}
+{
+  "name": "CompraNFC",
+  "short_name": "CompraNFC",
+  "start_url": "/casa/demo",
+  "display": "standalone",
+  "background_color": "#f4f6f5",
+  "theme_color": "#0b6b45",
+  "icons": []
+}
