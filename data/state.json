@@ -1,0 +1,74 @@
+{
+  "houses": {
+    "demo": {
+      "name": "Casa demo",
+      "items": {},
+      "history": [
+        {
+          "id": "59a07a7c-eca1-4c51-93ff-9ecd423ebe11",
+          "date": "2026-09-23T08:00:41.269Z",
+          "items": [
+            {
+              "productId": "m19825",
+              "texto": "Edulcorante stevia en sobres Hacendado",
+              "formato": "54 cajas x 1 g",
+              "categoria": "Azúcar, caramelos y chocolate",
+              "subcategoria": "Azúcar y edulcorante",
+              "ruta": "Azúcar, caramelos y chocolate > Azúcar y edulcorante > Edulcorante y otros",
+              "pagina": null,
+              "cantidad": 1,
+              "addedAt": "2026-09-23T08:00:30.234Z"
+            },
+            {
+              "productId": "m19812",
+              "texto": "Edulcorante en pastillas stevia Hacendado",
+              "formato": "Bote · 9 g",
+              "categoria": "Azúcar, caramelos y chocolate",
+              "subcategoria": "Azúcar y edulcorante",
+              "ruta": "Azúcar, caramelos y chocolate > Azúcar y edulcorante > Edulcorante y otros",
+              "pagina": null,
+              "cantidad": 1,
+              "addedAt": "2026-09-23T08:00:30.988Z"
+            },
+            {
+              "productId": "m19817",
+              "texto": "Edulcorante granulado stevia Hacendado",
+              "formato": "Bote · 200 g",
+              "categoria": "Azúcar, caramelos y chocolate",
+              "subcategoria": "Azúcar y edulcorante",
+              "ruta": "Azúcar, caramelos y chocolate > Azúcar y edulcorante > Edulcorante y otros",
+              "pagina": null,
+              "cantidad": 1,
+              "addedAt": "2026-09-23T08:00:31.562Z"
+            },
+            {
+              "productId": "m19820",
+              "texto": "Edulcorante líquido stevia Hacendado",
+              "formato": "Bote · 0,15 L",
+              "categoria": "Azúcar, caramelos y chocolate",
+              "subcategoria": "Azúcar y edulcorante",
+              "ruta": "Azúcar, caramelos y chocolate > Azúcar y edulcorante > Edulcorante y otros",
+              "pagina": null,
+              "cantidad": 1,
+              "addedAt": "2026-09-23T08:00:32.487Z"
+            }
+          ]
+        },
+        {
+          "id": "ac39f69f-f19a-42b2-a0ce-30509b38e75c",
+          "date": "2026-09-22T17:31:58.881Z",
+          "items": [
+            {
+              "productId": "p0001",
+              "texto": "TEST LECHE",
+              "categoria": "Prueba",
+              "pagina": null,
+              "cantidad": 2,
+              "addedAt": "2026-09-22T17:31:57.599Z"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

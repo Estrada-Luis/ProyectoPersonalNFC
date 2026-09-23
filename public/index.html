@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0b6b45"><title>CompraNFC</title><link rel="manifest" href="/manifest.json"><link rel="stylesheet" href="/style.css"></head>
+<body><div id="app"><header><div><div class="brand">🛒 CompraNFC</div><div id="houseLabel" class="muted">Lista de la casa</div></div><button id="shareLink" class="iconbtn" title="Compartir enlace">↗</button></header>
+<main><section id="catalogView"><div class="searchrow"><input id="search" placeholder="Buscar producto…" autocomplete="off"><button id="clearSearch">×</button></div><div class="toolbar"><div id="resultCount" class="muted"></div><button id="refreshCatalog" class="refresh">↻ Actualizar catálogo</button></div><div id="chips" class="chips"></div><div id="results"></div></section>
+<section class="cart"><div class="cartHead"><h2>🛒 Lista de compra</h2><span id="countBadge">0</span></div><div id="cartItems"></div><button id="buyBtn" class="buy" disabled>🛍️ REALIZAR COMPRA</button></section>
+<section class="history"><details><summary>Historial de compras</summary><div id="history"></div></details></section></main></div><div id="toast"></div><script src="/app.js"></script></body></html>
