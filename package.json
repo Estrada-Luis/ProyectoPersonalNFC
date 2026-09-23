@@ -1,1 +1,11 @@
-{"name":"compranfc","version":"1.0.0","private":true,"scripts":{"start":"node server.js"}}
+{
+  "name": "compranfc",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4"
+  }
+}
