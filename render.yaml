@@ -2,16 +2,18 @@ services:
   - type: web
     name: compra-nfc
     runtime: node
-    plan: 0.5c-512mb
+    plan: free
     region: frankfurt
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /health
     autoDeployTrigger: commit
     envVars:
-      - key: DATA_DIR
-        value: /var/data
-    disk:
-      name: compra-nfc-data
-      mountPath: /var/data
-      sizeGB: 1
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ADMIN_KEY
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false
