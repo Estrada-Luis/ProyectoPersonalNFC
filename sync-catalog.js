@@ -43,13 +43,41 @@ async function fetchWithRetry(url,n=3){
 function clean(s){return String(s??'').replace(/\s+/g,' ').trim()}
 
 function productImage(p){
-  return clean(
-    p.thumbnail ||
-    p.image ||
-    (Array.isArray(p.photos) && p.photos[0] && (p.photos[0].thumbnail || p.photos[0].regular || p.photos[0].zoom)) ||
-    (Array.isArray(p.images) && p.images[0] && (p.images[0].thumbnail_url || p.images[0].regular_url || p.images[0].zoom_url)) ||
-    ''
-  );
+  // Mercadona puede devolver varias fotos del mismo producto. La clave
+  // "perspective" identifica el ángulo; las perspectivas 1-3 suelen ser
+  // las vistas principales del envase, mientras que 9 y otras altas suelen
+  // corresponder a vistas secundarias/traseras. No nos quedamos ciegamente
+  // con la primera imagen porque en algunos productos esa primera foto es
+  // precisamente la parte trasera.
+  const candidates=[];
+
+  if(Array.isArray(p.photos)){
+    for(const photo of p.photos){
+      const url=clean(photo?.thumbnail || photo?.regular || photo?.zoom);
+      if(url)candidates.push({url,perspective:Number(photo?.perspective)});
+    }
+  }
+
+  if(Array.isArray(p.images)){
+    for(const image of p.images){
+      const url=clean(image?.thumbnail_url || image?.regular_url || image?.zoom_url);
+      if(url)candidates.push({url,perspective:Number(image?.perspective)});
+    }
+  }
+
+  // Si existen fotos con perspectiva conocida, elegimos la principal:
+  // menor perspectiva primero. Así evitamos preferir automáticamente una
+  // foto trasera (por ejemplo perspective 9) cuando existe una frontal.
+  if(candidates.length){
+    candidates.sort((a,b)=>{
+      const ap=Number.isFinite(a.perspective) ? a.perspective : 999;
+      const bp=Number.isFinite(b.perspective) ? b.perspective : 999;
+      return ap-bp;
+    });
+    return candidates[0].url;
+  }
+
+  return clean(p.thumbnail || p.image || '');
 }
 
 function normalizeProductInfo(p){
@@ -333,7 +361,7 @@ async function syncFromMercadonaDirect(existingProducts=[]){
               packaging:clean(p.packaging||''),categoria:route[0]||'Otros productos',
               subcategoria:route[1]||route[route.length-1]||'Otros productos',
               ruta:route.join(' > '),pagina:null,
-              imagen:clean(p.thumbnail||p.image||(Array.isArray(p.photos)&&p.photos[0]&&(p.photos[0].thumbnail||p.photos[0].regular))||'')
+              imagen:productImage(p)
             });
           }
           if(Array.isArray(node.categories))for(const child of node.categories){
