@@ -237,7 +237,8 @@ async function syncFromMercaApi(){
         categoria:top,
         subcategoria:mid,
         ruta:route.length?route.join(' > '):leaf,
-        pagina:null
+        pagina:null,
+        imagen:clean(p.thumbnail||p.image||(Array.isArray(p.photos)&&p.photos[0]&&(p.photos[0].thumbnail||p.photos[0].regular))||'')
       });
     }
     console.log(`Productos descargados: ${products.length}`);
@@ -268,6 +269,8 @@ async function syncFromMercaApi(){
           unit_name:d.unit_name ?? pi.unit_name, is_pack:d.is_pack ?? pi.is_pack};
         const f=buildFormat(merged);
         if(f && f!==item.formato){ item.formato=f; improved++; }
+        const image=clean(d.thumbnail||d.image||(Array.isArray(d.photos)&&d.photos[0]&&(d.photos[0].thumbnail||d.photos[0].regular))||'');
+        if(image && !item.imagen) item.imagen=image;
       }catch(e){}
     }
     async function worker(){ while(true){ const i=pos++; if(i>=candidates.length)return; await enrichOne(candidates[i]); } }
@@ -319,7 +322,8 @@ async function syncFromMercadonaDirect(existingProducts=[]){
               id:'m'+id,codigo:id,texto:text,formato:buildFormat(p),
               packaging:clean(p.packaging||''),categoria:route[0]||'Otros productos',
               subcategoria:route[1]||route[route.length-1]||'Otros productos',
-              ruta:route.join(' > '),pagina:null
+              ruta:route.join(' > '),pagina:null,
+              imagen:clean(p.thumbnail||p.image||(Array.isArray(p.photos)&&p.photos[0]&&(p.photos[0].thumbnail||p.photos[0].regular))||'')
             });
           }
           if(Array.isArray(node.categories))for(const child of node.categories){
@@ -344,7 +348,7 @@ async function syncFromMercadonaDirect(existingProducts=[]){
     else{
       // El catálogo directo tiene prioridad para nombre/formato/categoría actuales.
       const old=mergedMap.get(key);
-      mergedMap.set(key,{...old,...p,formato:p.formato||old.formato, packaging:p.packaging||old.packaging});
+      mergedMap.set(key,{...old,...p,formato:p.formato||old.formato, packaging:p.packaging||old.packaging, imagen:p.imagen||old.imagen||''});
     }
   }
   const merged=[...mergedMap.values()];
