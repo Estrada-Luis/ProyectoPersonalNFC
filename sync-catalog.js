@@ -42,6 +42,16 @@ async function fetchWithRetry(url,n=3){
 }
 function clean(s){return String(s??'').replace(/\s+/g,' ').trim()}
 
+function productImage(p){
+  return clean(
+    p.thumbnail ||
+    p.image ||
+    (Array.isArray(p.photos) && p.photos[0] && (p.photos[0].thumbnail || p.photos[0].regular || p.photos[0].zoom)) ||
+    (Array.isArray(p.images) && p.images[0] && (p.images[0].thumbnail_url || p.images[0].regular_url || p.images[0].zoom_url)) ||
+    ''
+  );
+}
+
 function normalizeProductInfo(p){
   // La API puede exponer los datos directamente o dentro de price_instructions.
   const pi=p.price_instructions||{};
@@ -238,7 +248,7 @@ async function syncFromMercaApi(){
         subcategoria:mid,
         ruta:route.length?route.join(' > '):leaf,
         pagina:null,
-        imagen:clean(p.thumbnail||p.image||(Array.isArray(p.photos)&&p.photos[0]&&(p.photos[0].thumbnail||p.photos[0].regular))||'')
+        imagen:productImage(p)
       });
     }
     console.log(`Productos descargados: ${products.length}`);
@@ -269,7 +279,7 @@ async function syncFromMercaApi(){
           unit_name:d.unit_name ?? pi.unit_name, is_pack:d.is_pack ?? pi.is_pack};
         const f=buildFormat(merged);
         if(f && f!==item.formato){ item.formato=f; improved++; }
-        const image=clean(d.thumbnail||d.image||(Array.isArray(d.photos)&&d.photos[0]&&(d.photos[0].thumbnail||d.photos[0].regular))||'');
+        const image=productImage(d);
         if(image && !item.imagen) item.imagen=image;
       }catch(e){}
     }
