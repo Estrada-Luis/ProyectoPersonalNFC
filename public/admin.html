@@ -32,6 +32,7 @@ button{border:0;border-radius:10px;padding:13px 16px;font-size:16px;font-weight:
 <label for="id">ID personalizado (opcional)</label>
 <input id="id" placeholder="Déjalo vacío para generar uno seguro">
 <button id="create" class="primary">Crear nueva casa</button>
+<button id="sync" class="secondary" style="width:100%;margin-top:10px">↻ Actualizar catálogo con fotos</button>
 <div id="error"></div>
 <div id="result" class="result">
 <strong id="title"></strong>
@@ -45,6 +46,17 @@ button{border:0;border-radius:10px;padding:13px 16px;font-size:16px;font-weight:
 </main>
 <script>
 const $=id=>document.getElementById(id);
+$('sync').onclick=async()=>{
+  $('error').textContent=''; $('sync').disabled=true; $('sync').textContent='Actualizando catálogo…';
+  const key=$('key').value.trim();
+  if(!key){$('error').textContent='Introduce la clave de administrador.';$('sync').disabled=false;$('sync').textContent='↻ Actualizar catálogo con fotos';return}
+  try{
+    const r=await fetch('/api/catalog/sync',{method:'POST',headers:{'x-admin-key':key}});
+    const d=await r.json(); if(!r.ok) throw new Error(d.error||'No se pudo actualizar el catálogo');
+    $('error').style.color='#0b6b45';$('error').textContent='Catálogo actualizado: '+d.count+' productos con sus imágenes.';
+  }catch(e){$('error').style.color='#b42318';$('error').textContent=e.message}
+  finally{$('sync').disabled=false;$('sync').textContent='↻ Actualizar catálogo con fotos'}
+};
 $('create').onclick=async()=>{
   $('error').textContent=''; $('result').style.display='none';
   const key=$('key').value.trim();
