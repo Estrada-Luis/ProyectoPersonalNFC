@@ -250,7 +250,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/catalog/sync' && req.method === 'POST') {
       if (!adminKeyValid(req)) return send(res, 403, { error: 'No autorizado' });
       const d = await syncCatalog();
-      return send(res, 200, { count: d.products.length, products: d.products });
+      return send(res, 200, { count: d.products.length, imageCount: d.products.filter(p => p.imagen).length, products: d.products });
     }
 
     let m = p.match(/^\/api\/house\/([^/]+)$/);
