@@ -216,6 +216,44 @@ async function readCatalog() {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
+let catalogSyncPromise = null;
+
+function catalogHasImages(catalog) {
+  const products = Array.isArray(catalog?.products) ? catalog.products : [];
+  if (!products.length) return false;
+  const imageCount = products.filter(p => p && p.imagen).length;
+  // Si el catálogo desplegado no trae fotos, lo regeneramos automáticamente.
+  return imageCount >= Math.max(1, Math.floor(products.length * 0.5));
+}
+
+async function ensureCatalogReady() {
+  let catalog;
+  try {
+    catalog = await readCatalog();
+    if (catalogHasImages(catalog)) return catalog;
+  } catch (e) {
+    catalog = null;
+  }
+
+  if (!catalogSyncPromise) {
+    console.log('Catálogo sin fotos o inexistente. Sincronizando automáticamente...');
+    catalogSyncPromise = syncCatalog()
+      .finally(() => { catalogSyncPromise = null; });
+  }
+
+  try {
+    return await catalogSyncPromise;
+  } catch (e) {
+    // Si la API externa falla, devolvemos el catálogo existente antes que
+    // dejar la aplicación sin productos.
+    if (catalog) {
+      console.warn('No se pudo regenerar el catálogo:', e.message);
+      return catalog;
+    }
+    throw e;
+  }
+}
+
 async function syncCatalog() {
   return new Promise((resolve, reject) => {
     const { spawn } = require('child_process');
@@ -244,7 +282,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (p === '/api/catalog' && req.method === 'GET') {
-      return send(res, 200, await readCatalog());
+      return send(res, 200, await ensureCatalogReady());
     }
 
     if (p === '/api/catalog/sync' && req.method === 'POST') {
