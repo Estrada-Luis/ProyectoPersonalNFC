@@ -3,9 +3,17 @@ const OUT=path.join(__dirname,'data','catalogo.json');
 const MERCADONA='https://tienda.mercadona.es/api';
 const headers={'User-Agent':'Mozilla/5.0','Accept':'application/json','Accept-Language':'es-ES,es;q=0.9'};
 
-function getJson(url){return new Promise((resolve,reject)=>{const req=https.get(url,{headers},res=>{let b='';res.setEncoding('utf8');res.on('data',c=>b+=c);res.on('end',()=>{if(res.statusCode<200||res.statusCode>=300)return reject(new Error(`HTTP ${res.statusCode} ${url}`));try{resolve(JSON.parse(b))}catch(e){reject(new Error('Respuesta no JSON de '+url))}})});req.on('error',reject);req.setTimeout(30000,()=>req.destroy(new Error('Timeout '+url)))})}
+function getJson(url){return new Promise((resolve,reject)=>{const req=https.get(url,{headers},res=>{let b='';res.setEncoding('utf8');res.on('data',c=>b+=c);res.on('end',()=>{if(res.statusCode<200||res.statusCode>=300){const e=new Error(`HTTP ${res.statusCode} ${url}`);e.statusCode=res.statusCode;return reject(e)}try{resolve(JSON.parse(b))}catch(e){reject(new Error('Respuesta no JSON de '+url))}})});req.on('error',reject);req.setTimeout(30000,()=>req.destroy(new Error('Timeout '+url)))})}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function fetchWithRetry(url,n=4){let e;for(let i=0;i<n;i++){try{return await getJson(url)}catch(x){e=x;if(i<n-1)await sleep(700*(i+1))}}throw e}
+async function fetchCategorySafe(id){
+  const url=`${MERCADONA}/categories/${encodeURIComponent(id)}/`;
+  try{return await fetchWithRetry(url,2)}
+  catch(e){
+    if(e.statusCode===404){console.log(`Categoría ${id} ya no existe; se omite y se continúa.`);return null}
+    throw e;
+  }
+}
 const clean=s=>String(s??'').replace(/\s+/g,' ').trim();
 
 function productImage(p){
@@ -39,27 +47,13 @@ function productFromOfficial(p,pathNames){
   const leaf=route.at(-1)||'Otros productos';
   const top=route[0]||leaf;
   const sub=route.length>1?route[1]:leaf;
-  return {
-    id:'m'+code,
-    codigo:code,
-    texto:name,
-    formato:formatProduct(p),
-    packaging:clean(p.packaging||''),
-    categoria:top,
-    subcategoria:sub,
-    ruta:route.length?route.join(' > '):leaf,
-    pagina:null,
-    imagen:productImage(p)
-  };
+  return {id:'m'+code,codigo:code,texto:name,formato:formatProduct(p),packaging:clean(p.packaging||''),categoria:top,subcategoria:sub,ruta:route.length?route.join(' > '):leaf,pagina:null,imagen:productImage(p)};
 }
 
 function categoryChildren(node){
   if(!node||typeof node!=='object')return [];
-  const a=Array.isArray(node.categories)?node.categories:[];
-  const b=Array.isArray(node.subcategories)?node.subcategories:[];
-  return [...a,...b];
+  return [...(Array.isArray(node.categories)?node.categories:[]),...(Array.isArray(node.subcategories)?node.subcategories:[])];
 }
-
 function categoryProducts(node){return node&&Array.isArray(node.products)?node.products:[]}
 function rootCategories(payload){
   if(Array.isArray(payload))return payload;
@@ -78,13 +72,10 @@ async function main(){
   const productsById=new Map();
   const visited=new Set();
   let requests=0;
-
   function addProducts(products,pathNames){
     for(const p of products){
       const item=productFromOfficial(p,pathNames);
-      if(!item)continue;
-      // Si aparece en más de una categoría, conservamos la primera ruta completa.
-      if(!productsById.has(item.codigo))productsById.set(item.codigo,item);
+      if(item&&!productsById.has(item.codigo))productsById.set(item.codigo,item);
     }
   }
 
@@ -93,7 +84,6 @@ async function main(){
     const id=String(node.id??'').trim();
     const name=clean(node.name);
     const currentPath=name?[...pathNames,name]:pathNames;
-
     addProducts(categoryProducts(node),currentPath);
 
     const children=categoryChildren(node);
@@ -101,22 +91,16 @@ async function main(){
       const childId=String(child?.id??'').trim();
       if(childId&&visited.has(childId))continue;
       if(childId)visited.add(childId);
-      // La respuesta raíz puede traer subcategorías sin sus productos.
-      // Consultamos siempre el detalle para no perder ninguna categoría/producto.
       if(childId){
-        const detail=await fetchWithRetry(`${MERCADONA}/categories/${encodeURIComponent(childId)}/`);
+        const detail=await fetchCategorySafe(childId);
         requests++;
-        await walkCategory(detail,currentPath);
-      }else{
-        await walkCategory(child,currentPath);
-      }
+        if(detail)await walkCategory(detail,currentPath);
+      }else await walkCategory(child,currentPath);
     }
 
-    // Algunas versiones de la API devuelven una categoría raíz con ID pero sin
-    // sus productos. Recuperamos también su endpoint de detalle.
     if(id&&currentPath.length===1&&!visited.has(`root-${id}`)){
       visited.add(`root-${id}`);
-      const detail=await fetchWithRetry(`${MERCADONA}/categories/${encodeURIComponent(id)}/`);
+      const detail=await fetchCategorySafe(id);
       requests++;
       if(detail&&detail!==node)await walkCategory(detail,pathNames);
     }
@@ -130,27 +114,16 @@ async function main(){
 
   const products=[...productsById.values()];
   if(products.length<1000)throw new Error(`Solo se obtuvieron ${products.length} productos de Mercadona. No se sustituye el catálogo.`);
-
   const imageCount=products.filter(p=>p.imagen).length;
-  const counts={};
-  for(const p of products)counts[p.categoria]=(counts[p.categoria]||0)+1;
+  const counts={};for(const p of products)counts[p.categoria]=(counts[p.categoria]||0)+1;
   const cerealCount=counts['Cereales y galletas']||0;
   const cerealProducts=products.filter(p=>/cereal|copos|corn flakes|muesli|avena|granola/i.test(`${p.texto} ${p.ruta}`));
-
   console.log(`TOTAL: ${products.length} productos; ${imageCount} con imagen.`);
   console.log(`Peticiones de categorías: ${requests}`);
   console.log(`Cereales y galletas: ${cerealCount}`);
   console.log(`Productos relacionados con cereales/avena/granola: ${cerealProducts.length}`);
-
-  const knownNames=['Cereales copos de trigo integral y arroz','0% azúcares añadidos'];
-  const known=products.find(p=>knownNames.every(x=>p.texto.toLowerCase().includes(x.toLowerCase())));
-  if(!known){
-    const possible=products.filter(p=>/copos de trigo integral|trigo integral.*arroz|0% az.*car/i.test(p.texto)).slice(0,10).map(p=>p.texto);
-    console.warn('AVISO: no se encontró el producto de prueba de cereales. Coincidencias:',possible);
-  }else{
-    console.log(`Producto de prueba encontrado: ${known.texto} (${known.codigo})`);
-  }
-
+  const known=products.find(p=>/copos de trigo integral y de arroz|trigo integral.*arroz/i.test(p.texto));
+  console.log(`Producto de prueba encontrado: ${known?known.texto+' ('+known.codigo+')':'NO ENCONTRADO'}`);
   fs.writeFileSync(OUT,JSON.stringify({source:'Mercadona · catálogo oficial por categorías',updatedAt:new Date().toISOString(),count:products.length,categories:Object.keys(counts).sort((a,b)=>a.localeCompare(b,'es')),products},null,2));
 }
 main().catch(e=>{console.error(e);process.exit(1)});
