@@ -1,6 +1,7 @@
 const fs=require('fs'),path=require('path'),https=require('https');
 const OUT=path.join(__dirname,'data','catalogo.json');
 const MERCADONA='https://tienda.mercadona.es/api';
+const MERCADONA_V11='https://tienda.mercadona.es/api/v1_1';
 const headers={'User-Agent':'Mozilla/5.0','Accept':'application/json','Accept-Language':'es-ES,es;q=0.9'};
 
 function getJson(url){return new Promise((resolve,reject)=>{const req=https.get(url,{headers},res=>{let b='';res.setEncoding('utf8');res.on('data',c=>b+=c);res.on('end',()=>{if(res.statusCode<200||res.statusCode>=300){const e=new Error(`HTTP ${res.statusCode} ${url}`);e.statusCode=res.statusCode;return reject(e)}try{resolve(JSON.parse(b))}catch(e){reject(new Error('Respuesta no JSON de '+url))}})});req.on('error',reject);req.setTimeout(30000,()=>req.destroy(new Error('Timeout '+url)))})}
@@ -62,16 +63,16 @@ function rootCategories(payload){
   return [];
 }
 
-async function main(){
-  console.log('Descargando catálogo directamente de la API oficial de Mercadona...');
-  const root=await fetchWithRetry(`${MERCADONA}/categories/`);
+async function collectCatalog(baseUrl){
+  const root=await fetchWithRetry(`${baseUrl}/categories/`);
   const roots=rootCategories(root);
-  if(!roots.length)throw new Error('Mercadona no devolvió categorías en /api/categories/.');
-  console.log(`Categorías raíz encontradas: ${roots.length}`);
+  if(!roots.length)throw new Error(`Mercadona no devolvió categorías en ${baseUrl}/categories/.`);
+  console.log(`Categorías raíz encontradas en ${baseUrl}: ${roots.length}`);
 
   const productsById=new Map();
   const visited=new Set();
   let requests=0;
+
   function addProducts(products,pathNames){
     for(const p of products){
       const item=productFromOfficial(p,pathNames);
@@ -79,30 +80,44 @@ async function main(){
     }
   }
 
+  async function fetchDetail(id){
+    const urls=baseUrl===MERCADONA_V11
+      ? [`${baseUrl}/categories/${encodeURIComponent(id)}`,`${baseUrl}/categories/${encodeURIComponent(id)}/?lang=es`]
+      : [`${baseUrl}/categories/${encodeURIComponent(id)}/`,`${baseUrl}/categories/${encodeURIComponent(id)}`];
+    for(const u of urls){
+      try{return await fetchWithRetry(u,2)}
+      catch(e){
+        if(e.statusCode===404)continue;
+        throw e;
+      }
+    }
+    console.log(`Categoría ${id} no disponible; se omite.`);
+    return null;
+  }
+
   async function walkCategory(node,pathNames){
     if(!node||typeof node!=='object')return;
-    const id=String(node.id??'').trim();
-    const name=clean(node.name);
+    const name=clean(node.name||node.display_name);
     const currentPath=name?[...pathNames,name]:pathNames;
     addProducts(categoryProducts(node),currentPath);
-
     const children=categoryChildren(node);
     for(const child of children){
       const childId=String(child?.id??'').trim();
       if(childId&&visited.has(childId))continue;
       if(childId)visited.add(childId);
       if(childId){
-        const detail=await fetchCategorySafe(childId);
+        const detail=await fetchDetail(childId);
         requests++;
         if(detail)await walkCategory(detail,currentPath);
       }else await walkCategory(child,currentPath);
     }
-
-    if(id&&currentPath.length===1&&!visited.has(`root-${id}`)){
+    // Algunas respuestas raíz no traen productos; consultar también la propia raíz.
+    const id=String(node.id??'').trim();
+    if(id&&!visited.has(`root-${id}`)){
       visited.add(`root-${id}`);
-      const detail=await fetchCategorySafe(id);
+      const detail=await fetchDetail(id);
       requests++;
-      if(detail&&detail!==node)await walkCategory(detail,pathNames);
+      if(detail)await walkCategory(detail,pathNames);
     }
   }
 
@@ -111,15 +126,35 @@ async function main(){
     if(id)visited.add(id);
     await walkCategory(rootCat,[]);
   }
+  return {products:[...productsById.values()],requests,roots:roots.length};
+}
 
-  const products=[...productsById.values()];
+async function main(){
+  console.log('Descargando catálogo de Mercadona...');
+
+  let result;
+  try{
+    result=await collectCatalog(MERCADONA);
+  }catch(e){
+    console.log('API actual de Mercadona no disponible:',e.message);
+  }
+
+  // La API actual ha cambiado y algunas categorías antiguas pueden devolver 404.
+  // La variante v1_1 sigue exponiendo el árbol de categorías y productos.
+  // Si la API actual no entrega un catálogo útil, usamos v1_1 como respaldo.
+  if(!result||result.products.length<1000){
+    console.log('El catálogo obtenido es insuficiente. Probando API v1_1...');
+    result=await collectCatalog(MERCADONA_V11);
+  }
+
+  const products=result.products;
   if(products.length<1000)throw new Error(`Solo se obtuvieron ${products.length} productos de Mercadona. No se sustituye el catálogo.`);
   const imageCount=products.filter(p=>p.imagen).length;
   const counts={};for(const p of products)counts[p.categoria]=(counts[p.categoria]||0)+1;
   const cerealCount=counts['Cereales y galletas']||0;
   const cerealProducts=products.filter(p=>/cereal|copos|corn flakes|muesli|avena|granola/i.test(`${p.texto} ${p.ruta}`));
   console.log(`TOTAL: ${products.length} productos; ${imageCount} con imagen.`);
-  console.log(`Peticiones de categorías: ${requests}`);
+  console.log(`Peticiones de categorías: ${result.requests}`);
   console.log(`Cereales y galletas: ${cerealCount}`);
   console.log(`Productos relacionados con cereales/avena/granola: ${cerealProducts.length}`);
   const known=products.find(p=>/copos de trigo integral y de arroz|trigo integral.*arroz/i.test(p.texto));
