@@ -7,16 +7,17 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function fetchWithRetry(url,n=4){let e;for(let i=0;i<n;i++){try{return await getJson(url)}catch(x){e=x;if(i<n-1)await sleep(1000*(i+1))}}throw e}
 const clean=s=>String(s??'').replace(/\s+/g,' ').trim();
 function productImage(p){
- const imgs=Array.isArray(p.images)?p.images.filter(x=>clean(x.zoom_url||x.regular_url||x.thumbnail_url)):[]; 
+ const imgs=Array.isArray(p.images)?p.images.filter(x=>clean(x.zoom_url||x.regular_url||x.thumbnail_url)):[];
  if(!imgs.length)return '';
  const score=x=>{
   const url=clean(x.zoom_url||x.regular_url||x.thumbnail_url);
   const perspective=Number(x.perspective);
   let s=0;
-  if(Number.isFinite(perspective))s+=perspective*100;
-  else s+=500;
-  if(/_00[_-]/i.test(url))s-=25;
-  if(/_01[_-]/i.test(url))s+=10;
+  // Mercadona normally marks the principal/front package shot with the _00_ image family.
+  if(/(?:^|[/_])00[_-]/i.test(url)||/_00_/i.test(url))s-=1000;
+  else if(/_01_/i.test(url))s+=100;
+  if(Number.isFinite(perspective))s+=perspective;
+  else s+=50;
   return s;
  };
  imgs.sort((a,b)=>score(a)-score(b));
@@ -30,14 +31,16 @@ async function main(){
  const catRows=Array.isArray(categories)?categories:(categories?.results||[]);
  const cats=new Map(catRows.map(c=>[String(c.id),c]));
  console.log(`Categorías recibidas: ${cats.size}`);
- const products=[];const seen=new Set();const limit=5000;let skip=0;
- for(;;){const page=await fetchWithRetry(`${SOURCE}/products/?skip=${skip}&limit=${limit}`);const rows=Array.isArray(page)?page:(page?.results||page?.data||[]);console.log(`Productos descargados: ${skip+rows.length}`);if(!rows.length)break;for(const p of rows){const code=String(p.id??'').trim();const name=clean(p.name||p.display_name);if(!code||!name||seen.has(code))continue;seen.add(code);const cat=p.category||cats.get(String(p.category_id))||{};const parent=cats.get(String(cat.parent_id||''))||{};const top=clean(parent.name||cat.name||'Otros productos');const sub=clean(cat.name||top);const route=parent.name&&parent.name!==cat.name?`${clean(parent.name)} > ${sub}`:sub;products.push({id:'m'+code,codigo:clean(p.ean||code),texto:name,formato:formatProduct(p),packaging:clean(p.packaging||''),categoria:top,subcategoria:sub,ruta:route,pagina:null,imagen:productImage(p)});}if(rows.length<limit)break;skip+=rows.length;await sleep(150)}
+ const products=[];const seen=new Set();const limit=5000;let skip=0;let page=0;
+ for(;;){page++;const response=await fetchWithRetry(`${SOURCE}/products/?skip=${skip}&limit=${limit}`);const rows=Array.isArray(response)?response:(response?.results||response?.data||[]);console.log(`Página ${page}: ${rows.length} productos; acumulados ${products.length+rows.length}`);if(!rows.length)break;for(const p of rows){const code=String(p.id??'').trim();const name=clean(p.name||p.display_name);if(!code||!name||seen.has(code))continue;seen.add(code);const cat=p.category||cats.get(String(p.category_id))||{};const parent=cats.get(String(cat.parent_id||''))||{};const top=clean(parent.name||cat.name||'Otros productos');const sub=clean(cat.name||top);const route=parent.name&&parent.name!==cat.name?`${clean(parent.name)} > ${sub}`:sub;products.push({id:'m'+code,codigo:clean(p.ean||code),texto:name,formato:formatProduct(p),packaging:clean(p.packaging||''),categoria:top,subcategoria:sub,ruta:route,pagina:null,imagen:productImage(p)});}if(rows.length<limit)break;skip+=rows.length;await sleep(150)}
  if(products.length<6000)throw new Error(`Solo se obtuvieron ${products.length} productos de MercaAPI. Catálogo incompleto: no se sustituye el catálogo anterior.`);
- const imageCount=products.filter(p=>p.imagen).length;const counts={};for(const p of products)counts[p.categoria]=(counts[p.categoria]||0)+1;
+ const imageCount=products.filter(p=>p.imagen).length;
+ if(imageCount<Math.floor(products.length*0.80))throw new Error(`Solo ${imageCount}/${products.length} productos tienen imagen. Catálogo sospechoso: no se sustituye el catálogo anterior.`);
+ const counts={};for(const p of products)counts[p.categoria]=(counts[p.categoria]||0)+1;
  const cerealProducts=products.filter(p=>/cereal|copos|corn flakes|muesli|avena|granola/i.test(`${p.texto} ${p.ruta}`));
  const lejiaProducts=products.filter(p=>/lej[ií]a/i.test(`${p.texto} ${p.ruta}`));
  const known=products.find(p=>/copos de trigo integral.*arroz|trigo integral.*arroz/i.test(p.texto));
- if(imageCount<Math.floor(products.length*0.80))throw new Error(`Solo ${imageCount}/${products.length} productos tienen imagen. Catálogo sospechoso: no se sustituye el catálogo anterior.`);\n console.log(`TOTAL: ${products.length} productos; ${imageCount} con imagen.`);
+ console.log(`TOTAL: ${products.length} productos; ${imageCount} con imagen.`);
  console.log(`Cereales y similares: ${cerealProducts.length}`);
  console.log(`Lejía y similares: ${lejiaProducts.length}`);
  console.log(`Producto de prueba encontrado: ${known?known.texto+' ('+known.codigo+')':'NO ENCONTRADO'}`);
