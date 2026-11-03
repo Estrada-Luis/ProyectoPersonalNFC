@@ -33,6 +33,31 @@ async function main(){
  console.log(`Categorías recibidas: ${cats.size}`);
  const products=[];const seen=new Set();const limit=5000;let skip=0;let page=0;
  for(;;){page++;const response=await fetchWithRetry(`${SOURCE}/products/?skip=${skip}&limit=${limit}`);const rows=Array.isArray(response)?response:(response?.results||response?.data||[]);console.log(`Página ${page}: ${rows.length} productos; acumulados ${products.length+rows.length}`);if(!rows.length)break;for(const p of rows){const code=String(p.id??'').trim();const name=clean(p.name||p.display_name);if(!code||!name||seen.has(code))continue;seen.add(code);const cat=p.category||cats.get(String(p.category_id))||{};const parent=cats.get(String(cat.parent_id||''))||{};const top=clean(parent.name||cat.name||'Otros productos');const sub=clean(cat.name||top);const route=parent.name&&parent.name!==cat.name?`${clean(parent.name)} > ${sub}`:sub;products.push({id:'m'+code,codigo:clean(p.ean||code),texto:name,formato:formatProduct(p),packaging:clean(p.packaging||''),categoria:top,subcategoria:sub,ruta:route,pagina:null,imagen:productImage(p)});}if(rows.length<limit)break;skip+=rows.length;await sleep(150)}
+ // Complementa el listado general con búsquedas de productos que a veces no aparecen
+ // en la paginación del catálogo, especialmente fruta congelada.
+ const extraQueries=['mix tropical','fruta tropical congelada','frutas congeladas','mix de frutas'];
+ for(const term of extraQueries){
+  try{
+   const matches=await fetchWithRetry(`${SOURCE}/products/closest?name=${encodeURIComponent(term)}&limit=30`);
+   const found=Array.isArray(matches)?matches:[];
+   let added=0;
+   for(const match of found){
+    const p=match?.product||match;
+    const code=String(p?.id??'').trim();
+    const name=clean(p?.name||p?.display_name);
+    if(!code||!name||seen.has(code))continue;
+    seen.add(code);
+    const cat=p.category||cats.get(String(p.category_id))||{};
+    const parent=cats.get(String(cat.parent_id||''))||{};
+    const top=clean(parent.name||cat.name||'Otros productos');
+    const sub=clean(cat.name||top);
+    const route=parent.name&&parent.name!==cat.name?`${clean(parent.name)} > ${sub}`:sub;
+    products.push({id:'m'+code,codigo:clean(p.ean||code),texto:name,formato:formatProduct(p),packaging:clean(p.packaging||''),categoria:top,subcategoria:sub,ruta:route,pagina:null,imagen:productImage(p)});
+    added++;
+   }
+   console.log(`Búsqueda complementaria "${term}": ${added} productos nuevos.`);
+  }catch(e){console.warn(`No se pudo completar la búsqueda "${term}": ${e.message}`)}
+ }
  if(products.length<6000)throw new Error(`Solo se obtuvieron ${products.length} productos de MercaAPI. Catálogo incompleto: no se sustituye el catálogo anterior.`);
  const imageCount=products.filter(p=>p.imagen).length;
  if(imageCount<Math.floor(products.length*0.80))throw new Error(`Solo ${imageCount}/${products.length} productos tienen imagen. Catálogo sospechoso: no se sustituye el catálogo anterior.`);
